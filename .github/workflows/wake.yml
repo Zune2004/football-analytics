@@ -1,0 +1,29 @@
+# Streamlit Community Cloud puts apps to sleep after ~12 h without visitors, so people clicking "Open the app" would
+# land on a "Zzzz" page. Visit both apps twice a day and press the wake button if it is there.
+name: Keep apps awake
+on:
+  schedule:
+    - cron: "17 */8 * * *"
+  workflow_dispatch:
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - run: pip install -q playwright && python -m playwright install --with-deps chromium > /dev/null
+      - shell: python
+        run: |
+          from playwright.sync_api import sync_playwright
+          APPS = ["https://xg-lab-football.streamlit.app/", "https://football-scout-labs.streamlit.app/"]
+          with sync_playwright() as p:
+              page = p.chromium.launch().new_page()
+              for url in APPS:
+                  page.goto(url, timeout=60_000)
+                  wake = page.get_by_role("button", name="get this app back up")
+                  try:
+                      wake.wait_for(timeout=15_000)
+                      wake.click()
+                      print(url, "was asleep: woken")
+                      page.wait_for_timeout(90_000)   # give the container time to boot
+                  except Exception:
+                      print(url, "awake")
